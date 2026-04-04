@@ -10,11 +10,65 @@
 #   - Both produce correct relative ordering with much simpler SQL
 #
 
+# Check if there's a dominant sequence pattern (>60% of follow-ups)
+# Groups commands by their first two words to handle variants like
+# "git commit -m 'foo'" and "git commit -m 'bar'" as the same pattern.
+# Returns the most frequent exact command from the dominant group.
+_sage_sequence_override() {
+    local prefix="$1"
+    local prev_cmd="$2"
+
+    [[ -z "$prev_cmd" ]] && return
+
+    local e_prefix="$(_sage_sql_escape "$prefix")"
+    local e_prev="$(_sage_sql_escape "$prev_cmd")"
+    local like_prefix="${e_prefix//\%/\$%}"
+    like_prefix="${like_prefix//_/\$_}"
+
+    # Step 1: Find dominant command group (by first 2 words)
+    # Step 2: Return the most recent exact command from that group
+    _sage_db_query "
+WITH follow_ups AS (
+    SELECT command,
+        CASE
+            WHEN INSTR(SUBSTR(command, INSTR(command, ' ') + 1), ' ') > 0
+            THEN SUBSTR(command, 1, INSTR(command, ' ') + INSTR(SUBSTR(command, INSTR(command, ' ') + 1), ' ') - 1)
+            ELSE command
+        END as cmd_group
+    FROM commands
+    WHERE prev_command = '${e_prev}'
+      AND command LIKE '${like_prefix}%' ESCAPE '\$'
+),
+group_shares AS (
+    SELECT cmd_group,
+        CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM follow_ups) as share
+    FROM follow_ups
+    GROUP BY cmd_group
+    HAVING share > 0.6
+    ORDER BY COUNT(*) DESC
+    LIMIT 1
+)
+SELECT f.command
+FROM follow_ups f
+INNER JOIN group_shares gs ON f.cmd_group = gs.cmd_group
+GROUP BY f.command
+ORDER BY COUNT(*) DESC
+LIMIT 1;"
+}
+
 # Score and rank all candidates in one SQL query — returns the best command
 _sage_rank_candidates() {
     local prefix="$1"
     local dir="$2"
     local prev_cmd="$3"
+
+    # Fast path: if a command dominates the sequence (>60%), return it directly
+    local seq_override
+    seq_override=$(_sage_sequence_override "$prefix" "$prev_cmd")
+    if [[ -n "$seq_override" ]]; then
+        printf '%s' "$seq_override"
+        return
+    fi
 
     local e_prefix="$(_sage_sql_escape "$prefix")"
     local e_dir="$(_sage_sql_escape "$dir")"
@@ -49,7 +103,8 @@ seq_stats AS (
     SELECT
         command,
         CAST(COUNT(*) AS REAL) / MAX(
-            (SELECT COUNT(*) FROM commands WHERE prev_command = '${e_prev}'), 1
+            (SELECT COUNT(*) FROM commands WHERE prev_command = '${e_prev}'
+             AND command LIKE '${like_prefix}%' ESCAPE '$'), 1
         ) as seq_score
     FROM commands
     WHERE prev_command = '${e_prev}'
@@ -74,7 +129,11 @@ SELECT
         ${wk} * (CASE WHEN (s.success_count + s.fail_count) > 0
                  THEN CAST(s.success_count AS REAL) / (s.success_count + s.fail_count)
                  ELSE 0.5 END)
-    ) as score
+    )
+    -- Sequence boost: when a command is the dominant follow-up (>50%),
+    -- multiply the total score to let strong patterns override frequency
+    * (1.0 + 1.5 * MAX(0, COALESCE(ss.seq_score, 0) - 0.5))
+    as score
 FROM stats s
 CROSS JOIN global_max gm
 LEFT JOIN dir_stats ds ON ds.command = s.command
@@ -94,6 +153,14 @@ _sage_rank_with_score() {
     local prefix="$1"
     local dir="$2"
     local prev_cmd="$3"
+
+    # Fast path: dominant sequence returns high confidence
+    local seq_override
+    seq_override=$(_sage_sequence_override "$prefix" "$prev_cmd")
+    if [[ -n "$seq_override" ]]; then
+        printf '0.95|%s' "$seq_override"
+        return
+    fi
 
     local e_prefix="$(_sage_sql_escape "$prefix")"
     local e_dir="$(_sage_sql_escape "$dir")"

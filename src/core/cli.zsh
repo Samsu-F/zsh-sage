@@ -194,7 +194,13 @@ _sage_cli_stats() {
     echo ""
     echo "${b}TOP COMMANDS${r}"
     echo "${d}───────────────────────────────────────────${r}"
-    _sage_db_query "SELECT printf('  ${c}%4d${r}  %s', frequency, command) FROM stats ORDER BY frequency DESC LIMIT 15;"
+    # Filter out junk entries: multiline fragments, leading whitespace
+    _sage_db_query "SELECT printf('  %4d  %s', frequency, SUBSTR(command, 1, 60)) FROM stats
+WHERE TRIM(command) = command
+  AND LENGTH(TRIM(command)) > 1
+  AND command NOT LIKE '%' || CHAR(92)
+ORDER BY frequency DESC LIMIT 15;"
+    echo ""
     echo "${d}───────────────────────────────────────────${r}"
 
     local total=$(_sage_db_query "SELECT COUNT(*) FROM commands;")

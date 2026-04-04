@@ -1,11 +1,13 @@
 <div align="center">
 
-```
+<div align="center">
+<pre>
  _______ _  _     ___   _   ___ ___
 |_  / __| || |___/ __| /_\ / __| __|
  / /\__ \ __ |___\__ \/ _ \ (_ | _|
 /___|___/_||_|   |___/_/ \_\___|___|
-```
+</pre>
+</div>
 
 **Your shell should know you better than you know yourself.**
 

@@ -1,10 +1,27 @@
-# zsh-sage
+<div align="center">
 
-A drop-in replacement for [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) with intelligent, multi-signal ranking and confidence-colored ghost text.
+```
+          _
+  _______| |__        ___  __ _  __ _  ___
+ |_  / __| '_ \ ___  / __|/ _` |/ _` |/ _ \
+  / /\__ \ | | |___| \__ \ (_| | (_| |  __/
+ /___|___/_| |_|     |___/\__,_|\__, |\___|
+                                |___/
+```
 
-While zsh-autosuggestions suggests the most recent history match, zsh-sage scores every candidate across **5 signals** — frequency, recency, directory context, command sequences, and success rate — to surface the suggestion you actually want.
+**Your shell should know you better than you know yourself.**
 
-## How it works
+Intelligent zsh autosuggestions that learn from your habits — powered by multi-signal ranking and confidence-colored ghost text.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+</div>
+
+---
+
+## What makes it different
+
+zsh-sage doesn't just match your most recent command. It scores every candidate across **5 signals** — frequency, recency, directory context, command sequences, and success rate — then shows the winner as colored ghost text that reflects how confident it is.
 
 ```
 You type:   git co
@@ -16,24 +33,21 @@ You type:   git co
                    │  success      100% exit code 0        │
                    ╰──────────────────────────────────────╯
 Suggestion: git commit -m 'update'
-            ~~~~~~~~~~~~~~~~~~~~~~  (colored ghost text)
+            ~~~~~~~~~~~~~~~~~~~~~~  (sage green = high confidence)
 ```
 
 Press **right arrow** to accept, **Ctrl+Right** to accept word-by-word.
 
-## Why switch from zsh-autosuggestions?
+## Features
 
-| Feature | zsh-autosuggestions | zsh-sage |
-|---|---|---|
-| Ranking | Most recent match | Multi-signal scoring |
-| Directory awareness | No | Yes — different dirs, different suggestions |
-| Sequence awareness | No | Yes — `git add .` → suggests `git commit` |
-| Failed command penalty | No | Yes — typos and failures get demoted |
-| Recency decay | No (just most recent) | Yes — linear decay over 7 days |
-| Confidence colors | No — fixed grey | Yes — color reflects score confidence |
-| AI fallback | No | Optional — Anthropic Haiku for novel commands |
-| Configurable weights | No | Yes — presets + per-weight tuning |
-| Performance | ~0.01ms (in-memory) | ~6ms (SQLite coproc, indexed) |
+- **Multi-signal ranking** — frequency, recency, directory, command sequences, and success rate
+- **Confidence colors** — ghost text turns sage green when confident, faint grey when guessing
+- **Directory-aware** — different projects, different suggestions
+- **Sequence-aware** — `git add .` → suggests `git commit`, not `git config`
+- **Failure penalty** — typos and broken commands get demoted
+- **Profile presets** — `default`, `contextual`, `recent` — one line to switch
+- **AI fallback** — optional Anthropic Haiku for novel commands (BYOK)
+- **6ms per keystroke** — SQLite coproc, single-query scoring, zero fork overhead
 
 ## Confidence colors
 

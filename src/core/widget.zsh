@@ -68,8 +68,16 @@ _sage_highlight_apply() {
 # ── Main suggestion widget ───────────────────────────────────────
 _sage_suggest_widget() {
     emulate -L zsh
+    local -i KEYS_QUEUED_COUNT
+
     _sage_highlight_reset
     zle .self-insert
+
+    # Skip suggestion if more keys are buffered (paste or fast typing)
+    if (( PENDING > 0 || KEYS_QUEUED_COUNT > 0 )); then
+        return
+    fi
+
     _sage_update_suggestion
     zle -R
 }
@@ -182,17 +190,28 @@ _sage_check_ai_result() {
     fi
 }
 
+# ── Clear ghost text on Enter before executing ───────────────────
+_sage_accept_line_widget() {
+    emulate -L zsh
+    _sage_highlight_reset
+    POSTDISPLAY=""
+    _SAGE_CURRENT_SUGGESTION=""
+    zle .accept-line
+}
+
 # ── Register widgets and keybindings ─────────────────────────────
 _sage_widget_init() {
     zle -N sage-suggest _sage_suggest_widget
     zle -N sage-accept _sage_accept_widget
     zle -N sage-accept-word _sage_accept_word_widget
     zle -N sage-dismiss _sage_dismiss_widget
+    zle -N sage-accept-line _sage_accept_line_widget
     zle -N self-insert _sage_suggest_widget
 
     bindkey '^[[C' sage-accept          # Right arrow
     bindkey '^[OC' sage-accept          # Right arrow (alternate)
     bindkey '^[[1;5C' sage-accept-word  # Ctrl+Right
+    bindkey '^M' sage-accept-line       # Enter
 
     zle -N sage-backspace _sage_backspace_widget
     bindkey '^?' sage-backspace         # Backspace

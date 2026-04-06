@@ -66,14 +66,14 @@ Complete command:"
         -H "x-api-key: ${ZSH_SAGE_API_KEY}" \
         -H "anthropic-version: 2023-06-01" \
         -d "{
-            \"model\": \"claude-haiku-4-5-20251001\",
+            \"model\": \"${ZSH_SAGE_AI_MODEL}\",
             \"max_tokens\": 100,
             \"messages\": [{
                 \"role\": \"user\",
                 \"content\": $(printf '%s' "$prompt" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
             }]
         }" \
-        "https://api.anthropic.com/v1/messages" 2>/dev/null)
+        "${ZSH_SAGE_API_BASE}/v1/messages" 2>/dev/null)
 
     # Extract the text from the response
     local suggestion

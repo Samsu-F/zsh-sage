@@ -106,7 +106,7 @@ source ~/.zshrc
 On first install, import your zsh history so suggestions work immediately:
 
 ```zsh
-zsh -c 'source /path/to/zsh-sage/zsh-sage.plugin.zsh && _sage_db_import_history'
+zsh -ic '_sage_db_import_history'
 ```
 
 This seeds the database with your past commands. Sequence data (what follows what) builds up automatically as you use the shell.

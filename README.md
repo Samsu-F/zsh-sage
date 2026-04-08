@@ -1,13 +1,10 @@
 <div align="center">
-
-<div align="center">
 <pre>
  _______ _  _     ___   _   ___ ___
 |_  / __| || |___/ __| /_\ / __| __|
  / /\__ \ __ |___\__ \/ _ \ (_ | _|
 /___|___/_||_|   |___/_/ \_\___|___|
 </pre>
-</div>
 
 **Your shell should know you better than you know yourself.**
 
@@ -40,14 +37,18 @@ Press **right arrow** to accept, **Ctrl+Right** to accept word-by-word.
 
 ## Features
 
+Everything below works out of the box — no configuration needed.
+
 - **Multi-signal ranking** — frequency, recency, directory, command sequences, and success rate
 - **Confidence colors** — ghost text turns sage green when confident, faint grey when guessing
 - **Directory-aware** — different projects, different suggestions
 - **Sequence-aware** — `git add .` → suggests `git commit`, not `git config`
+- **Prefix-length-aware** — short prefixes lean on frequency, long prefixes lean on recency
+- **Exponential recency decay** — smooth fade with a 3-day half-life, no cliffs
 - **Failure penalty** — typos and broken commands get demoted
-- **Profile presets** — `default`, `contextual`, `recent` — one line to switch
+- **Learns from you** — every accepted suggestion tunes the ranking over time
 - **AI fallback** — optional Anthropic Haiku for novel commands (BYOK)
-- **6ms per keystroke** — SQLite coproc, single-query scoring, zero fork overhead
+- **~9ms per keystroke** — SQLite coproc, single-query scoring, zero fork overhead
 
 ## Confidence colors
 
@@ -59,17 +60,7 @@ Ghost text color reflects how confident the scorer is about the suggestion:
 | Medium (0.3 - 0.7) | Grey | "Decent guess" |
 | Low (< 0.3) | Faint grey | "This is a stretch" |
 
-You'll subconsciously learn to trust bright suggestions and be more skeptical of faint ones.
-
-Customize colors and thresholds in `~/.zshrc`:
-
-```zsh
-export ZSH_SAGE_COLOR_HIGH=108          # sage green (256-color)
-export ZSH_SAGE_COLOR_MED=245           # medium grey
-export ZSH_SAGE_COLOR_LOW=240           # faint grey
-export ZSH_SAGE_CONFIDENCE_HIGH=0.70    # threshold for high
-export ZSH_SAGE_CONFIDENCE_LOW=0.30     # threshold for low
-```
+You'll subconsciously learn to trust bright suggestions and be more skeptical of faint ones. Colors and thresholds are customizable — see [Advanced tuning](#advanced-manual-tuning).
 
 ## Installation
 
@@ -113,42 +104,7 @@ This seeds the database with your past commands. Sequence data (what follows wha
 
 ## Configuration
 
-### Profiles
-
-Choose a suggestion style with one line in `~/.zshrc`:
-
-```zsh
-export ZSH_SAGE_PROFILE="default"
-```
-
-| Profile | Style | Best for |
-|---|---|---|
-| `default` | Balanced, frequency-driven | Most users |
-| `contextual` | Directory + sequence heavy | Devs working across many projects |
-| `recent` | Recency-dominant | Rapidly changing workflows |
-
-<details>
-<summary>Profile weight details</summary>
-
-| Signal | default | contextual | recent |
-|---|---|---|---|
-| Frequency | 0.30 | 0.15 | 0.15 |
-| Recency | 0.25 | 0.20 | 0.40 |
-| Directory | 0.20 | 0.30 | 0.15 |
-| Sequence | 0.15 | 0.25 | 0.20 |
-| Success | 0.10 | 0.10 | 0.10 |
-
-</details>
-
-### Fine-tuning weights
-
-Override individual weights on top of any profile:
-
-```zsh
-export ZSH_SAGE_PROFILE="contextual"
-export ZSH_SAGE_W_SEQUENCE="0.35"    # Boost sequence signal
-export ZSH_SAGE_W_FREQUENCY="0.10"   # Downplay frequency
-```
+**Most users don't need to configure anything.** zsh-sage adapts to your habits automatically — it shifts between frequency-heavy and recency-heavy ranking based on how much you've typed, learns which command follows which from your history, and scopes suggestions to the current directory. Just install it and use your shell normally.
 
 ### AI suggestions (optional)
 
@@ -161,12 +117,57 @@ export ZSH_SAGE_API_KEY="sk-your-anthropic-key"
 
 AI suggestions fire asynchronously only when the local scorer has no good match. The ghost text UX is identical — you won't know whether a suggestion came from history or AI. AI suggestions appear with medium confidence color.
 
+### Advanced: manual tuning
+
+<details>
+<summary>Profiles and weights (for power users)</summary>
+
+If the defaults don't feel right, you can nudge the ranking manually. Three presets are available:
+
+```zsh
+export ZSH_SAGE_PROFILE="default"      # balanced, frequency-driven (default)
+export ZSH_SAGE_PROFILE="contextual"   # directory + sequence heavy
+export ZSH_SAGE_PROFILE="recent"       # recency-dominant
+```
+
+| Signal | default | contextual | recent |
+|---|---|---|---|
+| Frequency | 0.30 | 0.15 | 0.15 |
+| Recency | 0.25 | 0.20 | 0.40 |
+| Directory | 0.20 | 0.30 | 0.15 |
+| Sequence | 0.15 | 0.25 | 0.20 |
+| Success | 0.10 | 0.10 | 0.10 |
+
+You can also override individual weights on top of any profile:
+
+```zsh
+export ZSH_SAGE_W_SEQUENCE="0.35"
+export ZSH_SAGE_W_FREQUENCY="0.10"
+```
+
+Other knobs:
+
+```zsh
+export ZSH_SAGE_RECENCY_HALFLIFE=259200         # 3 days (in seconds)
+export ZSH_SAGE_PREFIX_AWARE_WEIGHTS=true       # set false on very slow hardware
+export ZSH_SAGE_COLOR_HIGH=108                  # high confidence color (256-color)
+export ZSH_SAGE_COLOR_MED=245                   # medium
+export ZSH_SAGE_COLOR_LOW=240                   # low
+export ZSH_SAGE_CONFIDENCE_HIGH=0.70            # threshold for high
+export ZSH_SAGE_CONFIDENCE_LOW=0.30             # threshold for low
+```
+
+Note: profile presets are being de-emphasized as the automatic behavior improves. Future versions will rely on learned weights rather than manual profiles.
+
+</details>
+
 ## CLI
 
 ```zsh
 zsage status     # Current config, DB stats, active weights (with visual bars)
-zsage profile    # View available profiles with weight breakdowns
 zsage stats      # Your top commands by frequency
+zsage weights    # What zsh-sage has learned from your habits
+zsage profile    # View the profile presets (for advanced tuning)
 zsage version    # Show version
 zsage help       # Full usage info with color reference
 ```
@@ -184,13 +185,23 @@ zsage help       # Full usage info with color reference
 
 **Frequency** — How many times you've run a command. Sqrt-scaled to prevent a single heavily-used command from dominating everything.
 
-**Recency** — How recently you ran the command. Linear decay over 7 days — a command from yesterday scores higher than one from last month.
+**Recency** — How recently you ran the command. Exponential decay with a 3-day half-life — a command from 3 days ago scores 0.5, from a week ago 0.2. No cliff, smooth fade.
 
 **Directory** — Whether you run this command in the current directory. `npm test` in `~/webapp` won't be suggested in `~/infra`.
 
-**Sequence** — What you ran before the current command. After `git add .`, the scorer boosts `git commit`. After `cd project`, it boosts commands you typically run there.
+**Sequence** — What you ran before the current command. After `git add .`, the scorer boosts `git commit`. After `cd project`, it boosts commands you typically run there. When a command is the overwhelming follow-up (>60% share), it takes a fast-path override regardless of other signals.
 
 **Success rate** — Commands that exit 0 get boosted. That typo you made 50 times before fixing it gets penalized.
+
+### Prefix-length-aware weights
+
+The weights aren't static — they shift based on how much you've typed:
+
+- **Short prefix (1-3 chars)** — you're exploring, frequency matters most
+- **Medium prefix (4-8 chars)** — balanced, use profile defaults
+- **Long prefix (9+ chars)** — you know what you want, recency and directory matter most
+
+This is why typing `git co` gives you your most common `git co*` command, but typing `git commit -m "f` gives you the most recent `git commit -m` variant — the system adapts to how much context you've provided.
 
 ## Architecture
 
@@ -216,19 +227,22 @@ Benchmarked on Apple Silicon, 10,000 history entries:
 
 | Operation | Latency |
 |---|---|
-| Full rank (query + score) | 6ms |
-| With in-memory cache hit | 3ms |
-| SQLite query alone | 1.8ms |
+| Full rank (query + score) | ~9ms |
+| With in-memory cache hit | ~4ms |
+| SQLite query alone | ~2ms |
 
-Target was <50ms per keystroke. We hit 6ms.
+Target was <50ms per keystroke. We hit 9ms — imperceptible for typing.
 
-### Optimization journey
+### Journey
 
-| Version | Latency | Technique |
-|---|---|---|
-| v1 (naive) | ~500ms | Fork sqlite3 per candidate, bc per signal |
-| v2 (single SQL) | ~11ms | All scoring in one SQL query |
-| v3 (coproc) | ~6ms | Persistent sqlite3 process, zero fork overhead |
+The first three versions were pure **optimizations** — same behavior, faster. The fourth was an **algorithmic improvement** — slightly slower, significantly smarter.
+
+| Version | Latency | Change | Type |
+|---|---|---|---|
+| v1 (naive) | ~500ms | Fork sqlite3 per candidate, bc per signal | baseline |
+| v2 (single SQL) | ~11ms | All scoring in one SQL query | optimization (45×) |
+| v3 (coproc) | ~6ms | Persistent sqlite3 process, zero fork overhead | optimization (2×) |
+| v4 (prefix-aware) | ~9ms | Prefix-length-aware weights + exponential recency decay | improvement (traded 3ms for smarter ranking) |
 
 ## Dependencies
 

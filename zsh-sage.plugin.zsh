@@ -16,6 +16,15 @@ typeset -g ZSH_SAGE_API_BASE="${ZSH_SAGE_API_BASE:-https://api.anthropic.com}"
 typeset -g ZSH_SAGE_AI_MODEL="${ZSH_SAGE_AI_MODEL:-claude-haiku-4-5-20251001}"
 typeset -g ZSH_SAGE_MAX_CANDIDATES="${ZSH_SAGE_MAX_CANDIDATES:-10}"
 
+# Recency half-life in seconds — how fast old commands fade
+# Default: 3 days (command from 3 days ago scores 0.5, from 1 week ago ~0.2)
+typeset -g ZSH_SAGE_RECENCY_HALFLIFE="${ZSH_SAGE_RECENCY_HALFLIFE:-259200}"
+
+# Prefix-length-aware weights — shift rankings based on how much you've typed
+# Short prefixes lean toward frequency, long prefixes lean toward recency.
+# Set to "false" on slow hardware to save ~3ms per keystroke.
+typeset -g ZSH_SAGE_PREFIX_AWARE_WEIGHTS="${ZSH_SAGE_PREFIX_AWARE_WEIGHTS:-true}"
+
 # Learn from your habits
 # When you accept a suggestion, zsh-sage remembers which signals helped
 # so it can personalize rankings over time. Local only, nothing leaves your machine.

@@ -4,11 +4,60 @@
 # PERFORMANCE-CRITICAL: All scoring happens in a single SQLite query.
 # No per-candidate subshells, no bc -l loops.
 #
-# Approximations used (to avoid needing SQLite math extensions):
-#   - Frequency: sqrt-scaled instead of log-scaled (close enough, no ln needed)
-#   - Recency: linear decay over 7 days (0→1 scale) instead of exponential
-#   - Both produce correct relative ordering with much simpler SQL
+# Math:
+#   - Frequency: sqrt-scaled (prevents one heavy command from dominating)
+#   - Recency:   exponential decay with configurable half-life (default 3 days)
+#   - Directory: sqrt-scaled, scoped to the current PWD
+#   - Sequence:  conditional probability P(cmd | prev_cmd), only with non-empty context
+#   - Success:   success_count / (success_count + fail_count), default 0.5
 #
+# Weights are adjusted dynamically by prefix length (see _sage_adjust_weights).
+#
+
+# Adjust scoring weights based on prefix length.
+# The intuition: what the user needs changes as they type more.
+#   Short prefix (1-3 chars): they're exploring — frequency matters most
+#   Medium (4-8): balanced — use profile defaults
+#   Long (9+):    they know what they want — recency + directory matter most
+#
+# Sets these globals for the current call:
+#   _SAGE_CURR_WF, _SAGE_CURR_WR, _SAGE_CURR_WD, _SAGE_CURR_WS, _SAGE_CURR_WK
+_sage_adjust_weights() {
+    local prefix_len="$1"
+
+    # Scale factors for frequency and recency/directory
+    local freq_scale rec_scale dir_scale
+    if (( prefix_len <= 3 )); then
+        # Short: lean into frequency, away from recency/dir
+        freq_scale=1.3
+        rec_scale=0.8
+        dir_scale=0.8
+    elif (( prefix_len >= 9 )); then
+        # Long: lean into recency + directory, away from frequency
+        freq_scale=0.7
+        rec_scale=1.3
+        dir_scale=1.3
+    else
+        # Medium: no adjustment
+        freq_scale=1.0
+        rec_scale=1.0
+        dir_scale=1.0
+    fi
+
+    # Do all math in zsh native floating point (no subshells)
+    local raw_wf raw_wr raw_wd raw_total
+    (( raw_wf = ZSH_SAGE_W_FREQUENCY * freq_scale ))
+    (( raw_wr = ZSH_SAGE_W_RECENCY * rec_scale ))
+    (( raw_wd = ZSH_SAGE_W_DIRECTORY * dir_scale ))
+    (( raw_total = raw_wf + raw_wr + raw_wd + ZSH_SAGE_W_SEQUENCE + ZSH_SAGE_W_SUCCESS ))
+
+    typeset -g _SAGE_CURR_WF _SAGE_CURR_WR _SAGE_CURR_WD _SAGE_CURR_WS _SAGE_CURR_WK
+    (( _SAGE_CURR_WF = raw_wf / raw_total ))
+    (( _SAGE_CURR_WR = raw_wr / raw_total ))
+    (( _SAGE_CURR_WD = raw_wd / raw_total ))
+    (( _SAGE_CURR_WS = ZSH_SAGE_W_SEQUENCE / raw_total ))
+    (( _SAGE_CURR_WK = ZSH_SAGE_W_SUCCESS / raw_total ))
+}
 
 # Check if there's a dominant sequence pattern (>60% of follow-ups)
 # Groups commands by their first two words to handle variants like
@@ -80,15 +129,27 @@ _sage_rank_candidates() {
     local now
     now=$(date +%s)
 
-    # Weights
-    local wf="$ZSH_SAGE_W_FREQUENCY"
-    local wr="$ZSH_SAGE_W_RECENCY"
-    local wd="$ZSH_SAGE_W_DIRECTORY"
-    local ws="$ZSH_SAGE_W_SEQUENCE"
-    local wk="$ZSH_SAGE_W_SUCCESS"
+    # Weights: either prefix-length-aware or straight from profile
+    local wf wr wd ws wk
+    if [[ "${ZSH_SAGE_PREFIX_AWARE_WEIGHTS:-true}" == "true" ]]; then
+        _sage_adjust_weights "${#prefix}"
+        wf="$_SAGE_CURR_WF"
+        wr="$_SAGE_CURR_WR"
+        wd="$_SAGE_CURR_WD"
+        ws="$_SAGE_CURR_WS"
+        wk="$_SAGE_CURR_WK"
+    else
+        wf="$ZSH_SAGE_W_FREQUENCY"
+        wr="$ZSH_SAGE_W_RECENCY"
+        wd="$ZSH_SAGE_W_DIRECTORY"
+        ws="$ZSH_SAGE_W_SEQUENCE"
+        wk="$ZSH_SAGE_W_SUCCESS"
+    fi
 
-    # Decay window: 7 days in seconds
-    local decay_window=604800
+    # Exponential decay rate: ln(2) / half_life
+    local half_life="${ZSH_SAGE_RECENCY_HALFLIFE:-259200}"
+    local -F decay_rate
+    (( decay_rate = 0.693147 / half_life ))
 
     local sql="
 WITH global_max AS (
@@ -107,7 +168,8 @@ seq_stats AS (
              AND command LIKE '${like_prefix}%' ESCAPE '$'), 1
         ) as seq_score
     FROM commands
-    WHERE prev_command = '${e_prev}'
+    WHERE LENGTH('${e_prev}') > 0
+      AND prev_command = '${e_prev}'
       AND command LIKE '${like_prefix}%' ESCAPE '$'
     GROUP BY command
 )
@@ -118,7 +180,7 @@ SELECT
                  THEN MIN(1.0, SQRT(CAST(s.frequency AS REAL) / gm.max_freq))
                  ELSE 0 END) +
 
-        ${wr} * MAX(0, 1.0 - (CAST(${now} - s.last_used AS REAL) / ${decay_window})) +
+        ${wr} * EXP(-${decay_rate} * CAST(${now} - s.last_used AS REAL)) +
 
         ${wd} * (CASE WHEN ds.dir_freq IS NOT NULL AND gm.max_freq > 0
                  THEN MIN(1.0, SQRT(CAST(ds.dir_freq AS REAL) / gm.max_freq))
@@ -171,12 +233,27 @@ _sage_rank_with_score() {
     local now
     now=$(date +%s)
 
-    local wf="$ZSH_SAGE_W_FREQUENCY"
-    local wr="$ZSH_SAGE_W_RECENCY"
-    local wd="$ZSH_SAGE_W_DIRECTORY"
-    local ws="$ZSH_SAGE_W_SEQUENCE"
-    local wk="$ZSH_SAGE_W_SUCCESS"
-    local decay_window=604800
+    # Weights: either prefix-length-aware or straight from profile
+    local wf wr wd ws wk
+    if [[ "${ZSH_SAGE_PREFIX_AWARE_WEIGHTS:-true}" == "true" ]]; then
+        _sage_adjust_weights "${#prefix}"
+        wf="$_SAGE_CURR_WF"
+        wr="$_SAGE_CURR_WR"
+        wd="$_SAGE_CURR_WD"
+        ws="$_SAGE_CURR_WS"
+        wk="$_SAGE_CURR_WK"
+    else
+        wf="$ZSH_SAGE_W_FREQUENCY"
+        wr="$ZSH_SAGE_W_RECENCY"
+        wd="$ZSH_SAGE_W_DIRECTORY"
+        ws="$ZSH_SAGE_W_SEQUENCE"
+        wk="$ZSH_SAGE_W_SUCCESS"
+    fi
+
+    # Exponential decay rate: ln(2) / half_life
+    local half_life="${ZSH_SAGE_RECENCY_HALFLIFE:-259200}"
+    local -F decay_rate
+    (( decay_rate = 0.693147 / half_life ))
 
     local sql="
 WITH global_max AS (
@@ -191,10 +268,12 @@ seq_stats AS (
     SELECT
         command,
         CAST(COUNT(*) AS REAL) / MAX(
-            (SELECT COUNT(*) FROM commands WHERE prev_command = '${e_prev}'), 1
+            (SELECT COUNT(*) FROM commands WHERE prev_command = '${e_prev}'
+             AND command LIKE '${like_prefix}%' ESCAPE '\$'), 1
         ) as seq_score
     FROM commands
-    WHERE prev_command = '${e_prev}'
+    WHERE LENGTH('${e_prev}') > 0
+      AND prev_command = '${e_prev}'
       AND command LIKE '${like_prefix}%' ESCAPE '\$'
     GROUP BY command
 )
@@ -203,7 +282,7 @@ SELECT
         ${wf} * (CASE WHEN gm.max_freq > 0
                  THEN MIN(1.0, SQRT(CAST(s.frequency AS REAL) / gm.max_freq))
                  ELSE 0 END) +
-        ${wr} * MAX(0, 1.0 - (CAST(${now} - s.last_used AS REAL) / ${decay_window})) +
+        ${wr} * EXP(-${decay_rate} * CAST(${now} - s.last_used AS REAL)) +
         ${wd} * (CASE WHEN ds.dir_freq IS NOT NULL AND gm.max_freq > 0
                  THEN MIN(1.0, SQRT(CAST(ds.dir_freq AS REAL) / gm.max_freq))
                  ELSE 0 END) +
@@ -217,7 +296,7 @@ SELECT
     ${wf} * (CASE WHEN gm.max_freq > 0
              THEN MIN(1.0, SQRT(CAST(s.frequency AS REAL) / gm.max_freq))
              ELSE 0 END) as freq_contrib,
-    ${wr} * MAX(0, 1.0 - (CAST(${now} - s.last_used AS REAL) / ${decay_window})) as rec_contrib,
+    ${wr} * EXP(-${decay_rate} * CAST(${now} - s.last_used AS REAL)) as rec_contrib,
     ${wd} * (CASE WHEN ds.dir_freq IS NOT NULL AND gm.max_freq > 0
              THEN MIN(1.0, SQRT(CAST(ds.dir_freq AS REAL) / gm.max_freq))
              ELSE 0 END) as dir_contrib,
@@ -257,7 +336,7 @@ _sage_score_candidate() {
     local e_cmd="$(_sage_sql_escape "$cmd")"
     local e_dir="$(_sage_sql_escape "$current_dir")"
     local e_prev="$(_sage_sql_escape "$prev_cmd")"
-    local decay_window=604800
+    local half_life="${ZSH_SAGE_RECENCY_HALFLIFE:-259200}"
 
     local wf="$ZSH_SAGE_W_FREQUENCY"
     local wr="$ZSH_SAGE_W_RECENCY"
@@ -289,11 +368,7 @@ _sage_score_candidate() {
 
     local age=$((now - last_used))
     local recency
-    if (( age > decay_window )); then
-        recency=0
-    else
-        recency=$(echo "1.0 - ($age / $decay_window)" | bc -l)
-    fi
+    recency=$(echo "e(-0.693147 * $age / $half_life)" | bc -l)
 
     local freq_norm=0
     if (( max_freq > 0 )); then

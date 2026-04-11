@@ -320,6 +320,94 @@ LIMIT 1;"
     [[ -n "$result" ]] && printf '%s' "$result"
 }
 
+# Return top N scored results as newline-separated "score|command" lines
+# Used by the cycle-through widget (Ctrl+Space)
+_sage_rank_top_n() {
+    local prefix="$1"
+    local dir="$2"
+    local prev_cmd="$3"
+    local limit="${4:-4}"
+
+    local e_prefix="$(_sage_sql_escape "$prefix")"
+    local e_dir="$(_sage_sql_escape "$dir")"
+    local e_prev="$(_sage_sql_escape "$prev_cmd")"
+
+    local like_prefix="${e_prefix//\$/\$\$}"
+    like_prefix="${like_prefix//\%/\$%}"
+    like_prefix="${like_prefix//_/\$_}"
+
+    local now
+    now=$(date +%s)
+
+    local wf wr wd ws wk
+    if [[ "${ZSH_SAGE_PREFIX_AWARE_WEIGHTS:-true}" == "true" ]]; then
+        _sage_adjust_weights "${#prefix}"
+        wf="$_SAGE_CURR_WF"
+        wr="$_SAGE_CURR_WR"
+        wd="$_SAGE_CURR_WD"
+        ws="$_SAGE_CURR_WS"
+        wk="$_SAGE_CURR_WK"
+    else
+        wf="$ZSH_SAGE_W_FREQUENCY"
+        wr="$ZSH_SAGE_W_RECENCY"
+        wd="$ZSH_SAGE_W_DIRECTORY"
+        ws="$ZSH_SAGE_W_SEQUENCE"
+        wk="$ZSH_SAGE_W_SUCCESS"
+    fi
+
+    local half_life="${ZSH_SAGE_RECENCY_HALFLIFE:-259200}"
+    local -F decay_rate
+    (( decay_rate = 0.693147 / half_life ))
+
+    local sql="
+WITH global_max AS (
+    SELECT MAX(frequency) as max_freq FROM stats
+),
+dir_stats AS (
+    SELECT command, frequency as dir_freq
+    FROM stats
+    WHERE directory = '${e_dir}'
+),
+seq_stats AS (
+    SELECT
+        command,
+        CAST(COUNT(*) AS REAL) / MAX(
+            (SELECT COUNT(*) FROM commands WHERE prev_command = '${e_prev}'
+             AND command LIKE '${like_prefix}%' ESCAPE '\$'), 1
+        ) as seq_score
+    FROM commands
+    WHERE LENGTH('${e_prev}') > 0
+      AND prev_command = '${e_prev}'
+      AND command LIKE '${like_prefix}%' ESCAPE '\$'
+    GROUP BY command
+)
+SELECT
+    (
+        ${wf} * (CASE WHEN gm.max_freq > 0
+                 THEN MIN(1.0, SQRT(CAST(s.frequency AS REAL) / gm.max_freq))
+                 ELSE 0 END) +
+        ${wr} * EXP(-${decay_rate} * CAST(${now} - s.last_used AS REAL)) +
+        ${wd} * (CASE WHEN ds.dir_freq IS NOT NULL AND gm.max_freq > 0
+                 THEN MIN(1.0, SQRT(CAST(ds.dir_freq AS REAL) / gm.max_freq))
+                 ELSE 0 END) +
+        ${ws} * COALESCE(ss.seq_score, 0) +
+        ${wk} * (CASE WHEN (s.success_count + s.fail_count) > 0
+                 THEN CAST(s.success_count AS REAL) / (s.success_count + s.fail_count)
+                 ELSE 0.5 END)
+    ) as score,
+    REPLACE(REPLACE(REPLACE(s.command, CHAR(10), ' '), CHAR(13), ''), CHAR(92), '') as clean_cmd
+FROM stats s
+CROSS JOIN global_max gm
+LEFT JOIN dir_stats ds ON ds.command = s.command
+LEFT JOIN seq_stats ss ON ss.command = s.command
+WHERE s.command LIKE '${like_prefix}%' ESCAPE '\$'
+GROUP BY clean_cmd
+ORDER BY MAX(score) DESC
+LIMIT ${limit};"
+
+    _sage_db_query "$sql"
+}
+
 # Score a single candidate (kept for testing — uses the same SQL approach)
 _sage_score_candidate() {
     local candidate="$1"

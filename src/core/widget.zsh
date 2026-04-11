@@ -23,6 +23,11 @@ typeset -g _SAGE_CURRENT_DIR_CONTRIB=0
 typeset -g _SAGE_CURRENT_SEQ_CONTRIB=0
 typeset -g _SAGE_CURRENT_SUCC_CONTRIB=0
 
+# Cycle state — populated on first Ctrl+Space, rotated on subsequent presses
+typeset -ga _SAGE_CYCLE_RESULTS=()     # array of "score|command" lines
+typeset -g  _SAGE_CYCLE_INDEX=0        # current position in the cycle
+typeset -g  _SAGE_CYCLE_PREFIX=""       # the prefix these results are for
+
 # Confidence color thresholds (256-color)
 typeset -g ZSH_SAGE_COLOR_HIGH="${ZSH_SAGE_COLOR_HIGH:-108}"    # sage green
 typeset -g ZSH_SAGE_COLOR_MED="${ZSH_SAGE_COLOR_MED:-245}"      # medium grey
@@ -60,6 +65,9 @@ _sage_clear_state() {
     _SAGE_CURRENT_DIR_CONTRIB=0
     _SAGE_CURRENT_SEQ_CONTRIB=0
     _SAGE_CURRENT_SUCC_CONTRIB=0
+    _SAGE_CYCLE_RESULTS=()
+    _SAGE_CYCLE_INDEX=0
+    _SAGE_CYCLE_PREFIX=""
 }
 
 # ── Highlight management ─────────────────────────────────────────
@@ -160,7 +168,9 @@ _sage_accept_widget() {
 
     if [[ -n "$_SAGE_CURRENT_SUGGESTION" ]]; then
         # Record accept asynchronously with cached signal contributions
-        if [[ "$ZSH_SAGE_COLLECT_ACCEPTS" == "true" ]]; then
+        # Skip recording if contributions are all zero (e.g. from a cycled suggestion)
+        if [[ "$ZSH_SAGE_COLLECT_ACCEPTS" == "true" ]] \
+           && (( _SAGE_CURRENT_FREQ_CONTRIB + _SAGE_CURRENT_REC_CONTRIB + _SAGE_CURRENT_DIR_CONTRIB + _SAGE_CURRENT_SEQ_CONTRIB + _SAGE_CURRENT_SUCC_CONTRIB != 0 )); then
             {
                 _sage_db_record_accept \
                     "$_SAGE_CURRENT_FREQ_CONTRIB" \
@@ -241,6 +251,71 @@ _sage_accept_line_widget() {
     zle .accept-line
 }
 
+# ── Cycle through alternatives (Ctrl+Space) ─────────────────────
+_sage_cycle_widget() {
+    emulate -L zsh
+
+    local prefix="$BUFFER"
+    [[ -z "$prefix" ]] && return
+
+    # If prefix changed since last cycle, or no results cached, fetch fresh
+    if [[ "$prefix" != "$_SAGE_CYCLE_PREFIX" || ${#_SAGE_CYCLE_RESULTS} -eq 0 ]]; then
+        _SAGE_CYCLE_PREFIX="$prefix"
+        _SAGE_CYCLE_INDEX=0
+
+        local raw
+        raw=$(_sage_rank_top_n "$prefix" "$PWD" "$_SAGE_PREV_COMMAND" "${ZSH_SAGE_CYCLE_COUNT:-8}")
+
+        _SAGE_CYCLE_RESULTS=()
+        if [[ -n "$raw" ]]; then
+            local line
+            while IFS= read -r line; do
+                [[ -n "$line" ]] && _SAGE_CYCLE_RESULTS+=("$line")
+            done <<< "$raw"
+        fi
+
+        # If only one result (same as the default ghost), nothing to cycle
+        if (( ${#_SAGE_CYCLE_RESULTS} <= 1 )); then
+            zle -M "No alternatives available"
+            return
+        fi
+
+        # Start from the second result (first is already shown as ghost text)
+        _SAGE_CYCLE_INDEX=2
+    else
+        # Advance to next result, wrap around
+        _SAGE_CYCLE_INDEX=$(( _SAGE_CYCLE_INDEX % ${#_SAGE_CYCLE_RESULTS} + 1 ))
+    fi
+
+    # Display the current cycle entry
+    local entry="${_SAGE_CYCLE_RESULTS[$_SAGE_CYCLE_INDEX]}"
+    local score="${entry%%|*}"
+    local suggestion="${entry#*|}"
+
+    if [[ -n "$suggestion" && "$suggestion" == "$prefix"* ]]; then
+        _sage_highlight_reset
+        _SAGE_CURRENT_SUGGESTION="$suggestion"
+        POSTDISPLAY="${suggestion#$prefix}"
+
+        # Zero out contributions — cycled suggestions don't have per-signal breakdown
+        # This prevents recording inaccurate data if the user accepts this entry
+        _SAGE_CURRENT_FREQ_CONTRIB=0
+        _SAGE_CURRENT_REC_CONTRIB=0
+        _SAGE_CURRENT_DIR_CONTRIB=0
+        _SAGE_CURRENT_SEQ_CONTRIB=0
+        _SAGE_CURRENT_SUCC_CONTRIB=0
+
+        local style
+        style=$(_sage_confidence_style "$score")
+        _sage_highlight_apply "$style"
+
+        # Show position indicator
+        zle -M "suggestion ${_SAGE_CYCLE_INDEX}/${#_SAGE_CYCLE_RESULTS}"
+    fi
+
+    zle -R
+}
+
 # ── Register widgets and keybindings ─────────────────────────────
 _sage_widget_init() {
     zle -N sage-suggest _sage_suggest_widget
@@ -248,12 +323,14 @@ _sage_widget_init() {
     zle -N sage-accept-word _sage_accept_word_widget
     zle -N sage-dismiss _sage_dismiss_widget
     zle -N sage-accept-line _sage_accept_line_widget
+    zle -N sage-cycle _sage_cycle_widget
     zle -N self-insert _sage_suggest_widget
 
     bindkey '^[[C' sage-accept          # Right arrow
     bindkey '^[OC' sage-accept          # Right arrow (alternate)
     bindkey '^[[1;5C' sage-accept-word  # Ctrl+Right
     bindkey '^M' sage-accept-line       # Enter
+    bindkey '^N' sage-cycle              # Ctrl+N (next suggestion)
 
     zle -N sage-backspace _sage_backspace_widget
     bindkey '^?' sage-backspace         # Backspace

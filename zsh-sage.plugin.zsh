@@ -16,6 +16,9 @@ typeset -g ZSH_SAGE_API_BASE="${ZSH_SAGE_API_BASE:-https://api.anthropic.com}"
 typeset -g ZSH_SAGE_AI_MODEL="${ZSH_SAGE_AI_MODEL:-claude-haiku-4-5-20251001}"
 typeset -g ZSH_SAGE_MAX_CANDIDATES="${ZSH_SAGE_MAX_CANDIDATES:-10}"
 
+# Number of suggestions to cycle through with Ctrl+Space
+typeset -g ZSH_SAGE_CYCLE_COUNT="${ZSH_SAGE_CYCLE_COUNT:-8}"
+
 # Recency half-life in seconds — how fast old commands fade
 # Default: 3 days (command from 3 days ago scores 0.5, from 1 week ago ~0.2)
 typeset -g ZSH_SAGE_RECENCY_HALFLIFE="${ZSH_SAGE_RECENCY_HALFLIFE:-259200}"

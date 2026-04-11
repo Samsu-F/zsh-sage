@@ -196,7 +196,8 @@ _sage_db_candidates() {
     local dir="$(_sage_sql_escape "$2")"
     local limit="${3:-$ZSH_SAGE_MAX_CANDIDATES}"
 
-    local like_prefix="${prefix//\%/\$%}"
+    local like_prefix="${prefix//\$/\$\$}"
+    like_prefix="${like_prefix//\%/\$%}"
     like_prefix="${like_prefix//_/\$_}"
 
     _sage_db_query "SELECT s.command, s.frequency, s.last_used, s.success_count, s.fail_count
@@ -212,7 +213,8 @@ _sage_db_candidates_dir() {
     local dir="$(_sage_sql_escape "$2")"
     local limit="${3:-$ZSH_SAGE_MAX_CANDIDATES}"
 
-    local like_prefix="${prefix//\%/\$%}"
+    local like_prefix="${prefix//\$/\$\$}"
+    like_prefix="${like_prefix//\%/\$%}"
     like_prefix="${like_prefix//_/\$_}"
 
     _sage_db_query "SELECT s.command, s.frequency, s.last_used, s.success_count, s.fail_count
@@ -233,7 +235,8 @@ _sage_db_sequence_score() {
     local cmd="$(_sage_sql_escape "$1")"
     local prev_cmd="$(_sage_sql_escape "$2")"
 
-    local like_cmd="${cmd//\%/\$%}"
+    local like_cmd="${cmd//\$/\$\$}"
+    like_cmd="${like_cmd//\%/\$%}"
     like_cmd="${like_cmd//_/\$_}"
 
     _sage_db_query "SELECT CAST(COUNT(*) AS FLOAT) /

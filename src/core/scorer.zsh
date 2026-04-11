@@ -71,7 +71,8 @@ _sage_sequence_override() {
 
     local e_prefix="$(_sage_sql_escape "$prefix")"
     local e_prev="$(_sage_sql_escape "$prev_cmd")"
-    local like_prefix="${e_prefix//\%/\$%}"
+    local like_prefix="${e_prefix//\$/\$\$}"
+    like_prefix="${like_prefix//\%/\$%}"
     like_prefix="${like_prefix//_/\$_}"
 
     # Step 1: Find dominant command group (by first 2 words)
@@ -123,7 +124,8 @@ _sage_rank_candidates() {
     local e_dir="$(_sage_sql_escape "$dir")"
     local e_prev="$(_sage_sql_escape "$prev_cmd")"
 
-    local like_prefix="${e_prefix//\%/\$%}"
+    local like_prefix="${e_prefix//\$/\$\$}"
+    like_prefix="${like_prefix//\%/\$%}"
     like_prefix="${like_prefix//_/\$_}"
 
     local now
@@ -227,7 +229,8 @@ _sage_rank_with_score() {
     local e_dir="$(_sage_sql_escape "$dir")"
     local e_prev="$(_sage_sql_escape "$prev_cmd")"
 
-    local like_prefix="${e_prefix//\%/\$%}"
+    local like_prefix="${e_prefix//\$/\$\$}"
+    like_prefix="${like_prefix//\%/\$%}"
     like_prefix="${like_prefix//_/\$_}"
 
     local now

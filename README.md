@@ -49,7 +49,6 @@ Everything below works out of the box — no configuration needed.
 - **Learns from you** — every accepted suggestion tunes the ranking over time
 - **Cycle through alternatives** — press Ctrl+N to browse ranked suggestions, confidence color updates with each one
 - **`hm` command** — ask AI for commands in plain English, powered by Claude Code
-- **AI fallback** — optional Anthropic Haiku for novel commands (BYOK)
 - **~9ms per keystroke** — SQLite coproc, single-query scoring, zero fork overhead
 
 ## Confidence colors

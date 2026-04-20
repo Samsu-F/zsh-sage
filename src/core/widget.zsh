@@ -12,8 +12,6 @@
 
 typeset -g _SAGE_CURRENT_SUGGESTION=""
 typeset -g _SAGE_LAST_HIGHLIGHT=""
-typeset -g _SAGE_AI_PID=0
-typeset -g _SAGE_AI_TMPFILE="/tmp/zsh-sage-ai-$$"
 
 # Cached per-signal contributions for the currently shown suggestion
 # Used by the collector to record accepts with their signal breakdown
@@ -155,11 +153,6 @@ _sage_update_suggestion() {
     _sage_highlight_reset
     POSTDISPLAY=""
     _sage_clear_state
-
-    # AI fallback
-    if [[ "$ZSH_SAGE_AI_ENABLED" == "true" && -n "$ZSH_SAGE_API_KEY" ]]; then
-        _sage_ai_suggest_async "$prefix"
-    fi
 }
 
 # ── Accept full suggestion (right arrow) ─────────────────────────
@@ -224,22 +217,6 @@ _sage_dismiss_widget() {
     POSTDISPLAY=""
     _SAGE_CURRENT_SUGGESTION=""
     zle -R
-}
-
-# ── Async AI result check ────────────────────────────────────────
-_sage_check_ai_result() {
-    if [[ -f "$_SAGE_AI_TMPFILE" ]]; then
-        local ai_suggestion
-        ai_suggestion=$(<"$_SAGE_AI_TMPFILE")
-        rm -f "$_SAGE_AI_TMPFILE"
-
-        if [[ -n "$ai_suggestion" && "$ai_suggestion" == "$BUFFER"* && -z "$POSTDISPLAY" ]]; then
-            _SAGE_CURRENT_SUGGESTION="$ai_suggestion"
-            POSTDISPLAY="${ai_suggestion#$BUFFER}"
-            _sage_highlight_apply "fg=${ZSH_SAGE_COLOR_MED}"
-            zle -R
-        fi
-    fi
 }
 
 # ── Clear ghost text on Enter before executing ───────────────────

@@ -205,6 +205,12 @@ _sage_helpme_call() { echo ""; }
 output=$(_sage_helpme_ask "something impossible" 2>&1)
 assert_contains "ask shows error on empty result" "Could not get a suggestion" "$output"
 
+# Mock NO_COMMAND response (non-command input)
+_sage_helpme_call() { echo "NO_COMMAND"; }
+output=$(_sage_helpme_ask "I love you" 2>&1)
+assert_contains "ask handles non-command input" "doesn't look like a command" "$output"
+assert_exit "ask returns 0 for non-command" "0" "$?"
+
 cleanup
 
 # ═════════════════════════════════════════════════════════════════

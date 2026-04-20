@@ -45,7 +45,7 @@ _sage_helpme_ask() {
     local context
     context=$(_sage_helpme_context)
 
-    local prompt="You are a shell command expert. Given the context below, suggest the best shell command to accomplish the user's goal. Return ONLY the command — no explanation, no markdown, no quotes around it.
+    local prompt="You are a shell command expert. Given the context below, suggest the best shell command to accomplish the user's goal. Return ONLY the command — no explanation, no markdown, no quotes around it. If the input is not a command request (e.g. casual conversation, questions about life, etc.), respond with exactly: NO_COMMAND
 
 ${context}
 
@@ -59,6 +59,14 @@ Command:"
     if [[ -z "$result" ]]; then
         echo "  Could not get a suggestion."
         return 1
+    fi
+
+    if [[ "$result" == "NO_COMMAND" ]]; then
+        echo ""
+        echo "  That doesn't look like a command request."
+        echo "  Try something like: hm find files larger than 1GB"
+        echo ""
+        return 0
     fi
 
     _sage_helpme_display "$result"
@@ -237,6 +245,11 @@ _sage_helpme_display() {
             echo "  ${d}>${r} ${cmd}"
             echo ""
             eval "${cmd}"
+            local cmd_exit=$?
+            # Log to DB so it builds autosuggestion data
+            {
+                _sage_db_record "$cmd" "$PWD" "" "$cmd_exit" "$(date +%s)" ""
+            } &!
             ;;
         e|E)
             print -z "${cmd}"

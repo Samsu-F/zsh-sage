@@ -540,6 +540,9 @@ end_scenario
 # COPROC RESILIENCE
 # ═════════════════════════════════════════════════════════════════
 
+# Skip coproc test in fork mode (CI) — coproc isn't used there
+if (( ! ${ZSH_SAGE_NO_COPROC:-0} )); then
+
 new_scenario "Coproc auto-respawn after death"
 
 now=$(date +%s)
@@ -557,6 +560,11 @@ r=$(_sage_rank_candidates "git" "/repo" "")
 assert_eq "Suggestion works after coproc respawn" "git status" "$r"
 
 end_scenario
+
+else
+    echo ""
+    echo "  (Skipping coproc respawn test — running in fork mode)"
+fi
 
 # ═════════════════════════════════════════════════════════════════
 # COMBINED SIGNAL SCENARIOS

@@ -17,6 +17,8 @@ Intelligent zsh autosuggestions that learn from your habits — powered by multi
 
 ---
 
+https://github.com/UtsavMandal2022/zsh-sage/raw/main/assets/demo.mp4
+
 ## What makes it different
 
 zsh-sage doesn't just match your most recent command. It scores every candidate across **5 signals** — frequency, recency, directory context, command sequences, and success rate — then shows the winner as colored ghost text that reflects how confident it is.

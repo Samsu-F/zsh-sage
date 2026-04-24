@@ -17,10 +17,7 @@ Intelligent zsh autosuggestions that learn from your habits — powered by multi
 
 ---
 
-<div align="center">
-  <video src="assets/demo.mp4" width="700" controls></video>
-  <p><a href="assets/demo.mp4">Watch demo</a> if video doesn't load above</p>
-</div>
+https://github.com/user-attachments/assets/aa039fdf-dd2b-49b7-851e-8f322cdd54a3
 
 ## What makes it different
 

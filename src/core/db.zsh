@@ -32,6 +32,10 @@ _sage_coproc_start() {
 
     _SAGE_COPROC_ALIVE=1
 
+    # Prevent "you have running jobs" warning on shell exit
+    # The coproc is our internal implementation detail, not a user job
+    setopt NO_CHECK_JOBS NO_HUP 2>/dev/null
+
     # Enable WAL mode for better concurrent access (multiple tabs)
     _sage_db_query_raw "PRAGMA journal_mode=WAL;" > /dev/null 2>&1
 }
@@ -54,9 +58,16 @@ _sage_coproc_check() {
 # Stop the coprocess gracefully
 _sage_coproc_stop() {
     if (( _SAGE_COPROC_ALIVE )); then
+        # Tell sqlite3 to quit
         print -p ".quit" 2>/dev/null
         _SAGE_COPROC_ALIVE=0
     fi
+}
+
+# Shutdown hook — clean exit without "you have running jobs" warning
+_sage_shutdown() {
+    _sage_coproc_stop
+    wait 2>/dev/null
 }
 
 # ── Query execution ──────────────────────────────────────────────
@@ -340,11 +351,4 @@ ON CONFLICT(command, directory) DO UPDATE SET
     fi
 
     echo "Imported $count history entries (with sequence data)."
-}
-
-# ── Cleanup hook ─────────────────────────────────────────────────
-
-# Register shutdown hook to cleanly stop coproc when shell exits
-_sage_shutdown() {
-    _sage_coproc_stop
 }

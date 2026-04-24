@@ -10,6 +10,7 @@
 
 Intelligent zsh autosuggestions that learn from your habits — powered by multi-signal ranking and confidence-colored ghost text.
 
+[![Tests](https://github.com/UtsavMandal2022/zsh-sage/actions/workflows/test.yml/badge.svg)](https://github.com/UtsavMandal2022/zsh-sage/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>

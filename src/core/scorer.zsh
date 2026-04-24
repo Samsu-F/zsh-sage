@@ -89,13 +89,20 @@ WITH follow_ups AS (
     WHERE prev_command = '${e_prev}'
       AND command LIKE '${like_prefix}%' ESCAPE '\$'
 ),
-group_shares AS (
-    SELECT cmd_group,
+group_counts AS (
+    SELECT cmd_group, COUNT(*) as cnt,
         CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM follow_ups) as share
     FROM follow_ups
     GROUP BY cmd_group
-    HAVING share > 0.6
-    ORDER BY COUNT(*) DESC
+    ORDER BY cnt DESC
+),
+group_shares AS (
+    -- Override when: top group has >45% share AND at least 2× the runner-up
+    -- This prevents overriding when two commands are nearly equal (46% vs 40%)
+    SELECT cmd_group, share
+    FROM group_counts
+    WHERE share > 0.45
+      AND cnt >= 2 * COALESCE((SELECT cnt FROM group_counts LIMIT 1 OFFSET 1), 0)
     LIMIT 1
 )
 SELECT f.command

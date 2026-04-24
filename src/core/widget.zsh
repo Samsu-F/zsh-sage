@@ -30,21 +30,24 @@ typeset -g  _SAGE_CYCLE_PREFIX=""       # the prefix these results are for
 typeset -g ZSH_SAGE_COLOR_HIGH="${ZSH_SAGE_COLOR_HIGH:-108}"    # sage green
 typeset -g ZSH_SAGE_COLOR_MED="${ZSH_SAGE_COLOR_MED:-245}"      # medium grey
 typeset -g ZSH_SAGE_COLOR_LOW="${ZSH_SAGE_COLOR_LOW:-240}"      # faint grey
-typeset -g ZSH_SAGE_CONFIDENCE_HIGH="${ZSH_SAGE_CONFIDENCE_HIGH:-0.7}"
-typeset -g ZSH_SAGE_CONFIDENCE_LOW="${ZSH_SAGE_CONFIDENCE_LOW:-0.3}"
+typeset -g ZSH_SAGE_CONFIDENCE_HIGH="${ZSH_SAGE_CONFIDENCE_HIGH:-0.45}"
+typeset -g ZSH_SAGE_CONFIDENCE_LOW="${ZSH_SAGE_CONFIDENCE_LOW:-0.20}"
 
 # Map a score (0-1) to a highlight style string
 _sage_confidence_style() {
     local score="$1"
 
     # Integer math: score * 100 to avoid bc
+    # Pad decimals to 2 digits: "0.7" → "70", "0.27" → "27", "0.511" → "51"
     local score_int=${${score%%.*}:-0}
-    local score_dec="${score#*.}"
+    local score_dec="${score#*.}00"
     score_dec="${score_dec:0:2}"
-    local score_100=$(( ${score_int:-0} * 100 + ${score_dec:-0} ))
+    local score_100=$(( ${score_int:-0} * 100 + ${score_dec} ))
 
-    local high_100=$(( ${ZSH_SAGE_CONFIDENCE_HIGH%%.*} * 100 + ${${ZSH_SAGE_CONFIDENCE_HIGH#*.}:0:2} ))
-    local low_100=$(( ${ZSH_SAGE_CONFIDENCE_LOW%%.*} * 100 + ${${ZSH_SAGE_CONFIDENCE_LOW#*.}:0:2} ))
+    local high_dec="${ZSH_SAGE_CONFIDENCE_HIGH#*.}00"
+    local high_100=$(( ${ZSH_SAGE_CONFIDENCE_HIGH%%.*} * 100 + ${high_dec:0:2} ))
+    local low_dec="${ZSH_SAGE_CONFIDENCE_LOW#*.}00"
+    local low_100=$(( ${ZSH_SAGE_CONFIDENCE_LOW%%.*} * 100 + ${low_dec:0:2} ))
 
     if (( score_100 >= high_100 )); then
         echo "fg=${ZSH_SAGE_COLOR_HIGH}"
@@ -293,6 +296,22 @@ _sage_cycle_widget() {
     zle -R
 }
 
+# ── Tab completion wrapper ───────────────────────────────────────
+# After tab completes a word, the buffer changes but our ghost text
+# stays stale. This wrapper clears stale ghost text, runs the real
+# completion, then re-suggests.
+_sage_complete_widget() {
+    _sage_highlight_reset
+    POSTDISPLAY=""
+
+    # Call the original expand-or-complete (saved before we override)
+    zle _sage_orig_complete
+
+    # Re-suggest based on the now-completed buffer
+    _sage_update_suggestion
+    zle -R
+}
+
 # ── Register widgets and keybindings ─────────────────────────────
 _sage_widget_init() {
     zle -N sage-suggest _sage_suggest_widget
@@ -302,6 +321,10 @@ _sage_widget_init() {
     zle -N sage-accept-line _sage_accept_line_widget
     zle -N sage-cycle _sage_cycle_widget
     zle -N self-insert _sage_suggest_widget
+
+    # Save the original tab completion widget, then override
+    zle -A expand-or-complete _sage_orig_complete
+    zle -N expand-or-complete _sage_complete_widget
 
     bindkey '^[[C' sage-accept          # Right arrow
     bindkey '^[OC' sage-accept          # Right arrow (alternate)

@@ -1,0 +1,45 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y zsh sqlite3 bc
+          fi
+          # macOS has zsh, sqlite3, bc pre-installed
+
+      - name: Verify tools
+        run: |
+          zsh --version
+          sqlite3 --version
+          echo "bc: $(echo '1+1' | bc)"
+
+      - name: Run DB tests
+        run: zsh tests/test_db.sh
+
+      - name: Run Scorer tests
+        run: zsh tests/test_scorer.sh
+
+      - name: Run Weight Tuning tests
+        run: zsh tests/test_weight_tuning.sh
+
+      - name: Run Scenario tests
+        run: zsh tests/test_scenarios.sh
+
+      - name: Run Performance benchmarks
+        run: zsh tests/test_performance.sh

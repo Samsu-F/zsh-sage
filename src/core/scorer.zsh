@@ -351,12 +351,23 @@ LIMIT 1;"
 }
 
 # Return top N scored results as newline-separated "score|command" lines
-# Used by the cycle-through widget (Ctrl+Space)
+# Used by the cycle-through widget (Ctrl+N)
+# If a sequence override exists, it becomes result #1 and the rest fill from scoring
 _sage_rank_top_n() {
     local prefix="$1"
     local dir="$2"
     local prev_cmd="$3"
     local limit="${4:-4}"
+
+    # Check sequence override — if it exists, prepend as #1
+    local seq_override=""
+    local seq_cmd=""
+    seq_cmd=$(_sage_sequence_override "$prefix" "$prev_cmd")
+    if [[ -n "$seq_cmd" ]]; then
+        seq_override="0.95|${seq_cmd}"
+        # Reduce limit by 1 since override takes a slot
+        limit=$((limit - 1))
+    fi
 
     local e_prefix="$(_sage_sql_escape "$prefix")"
     local e_dir="$(_sage_sql_escape "$dir")"
@@ -435,7 +446,23 @@ GROUP BY clean_cmd
 ORDER BY MAX(score) DESC
 LIMIT ${limit};"
 
-    _sage_db_query "$sql"
+    local results
+    results=$(_sage_db_query "$sql")
+
+    # Prepend the sequence override if it exists, filter it from scoring results
+    if [[ -n "$seq_override" ]]; then
+        local e_seq_cmd="$(_sage_sql_escape "$seq_cmd")"
+        printf '%s\n' "$seq_override"
+        # Output rest, skipping the override command if it appears in scored results
+        if [[ -n "$results" ]]; then
+            echo "$results" | while IFS= read -r line; do
+                [[ "$line" == *"|${seq_cmd}" ]] && continue
+                echo "$line"
+            done
+        fi
+    else
+        [[ -n "$results" ]] && printf '%s' "$results"
+    fi
 }
 
 # Score a single candidate (kept for testing — uses the same SQL approach)

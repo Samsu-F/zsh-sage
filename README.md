@@ -17,7 +17,10 @@ Intelligent zsh autosuggestions that learn from your habits — powered by multi
 
 ---
 
-https://github.com/UtsavMandal2022/zsh-sage/raw/main/assets/demo.mp4
+<div align="center">
+  <video src="assets/demo.mp4" width="700" controls></video>
+  <p><a href="assets/demo.mp4">Watch demo</a> if video doesn't load above</p>
+</div>
 
 ## What makes it different
 

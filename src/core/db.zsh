@@ -102,6 +102,10 @@ _sage_db_fork() {
 # ── Database initialization ──────────────────────────────────────
 
 _sage_db_init() {
+    # Stop any existing coproc (in case the DB file changed, e.g. during tests)
+    _sage_coproc_stop 2>/dev/null
+    _SAGE_COPROC_ALIVE=0
+
     # Schema must be created via fork since coproc needs the DB to exist first
     sqlite3 "$ZSH_SAGE_DB" <<'SQL'
 CREATE TABLE IF NOT EXISTS commands (

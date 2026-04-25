@@ -294,10 +294,13 @@ The first three versions were pure **optimizations** — same behavior, faster. 
 
 ## Uninstall
 
+zsh-sage doesn't modify your `~/.zsh_history` or any system files — it maintains its own separate database at `~/.zsh-sage/sage.db`. Uninstalling is fully reversible.
+
 ```zsh
-# Remove from plugins in ~/.zshrc, then:
+# Remove 'zsh-sage' from plugins in ~/.zshrc, then:
 rm -rf ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-sage
-rm -rf ~/.zsh-sage    # Remove command database
+rm -rf ~/.zsh-sage    # Optional: remove command database
+source ~/.zshrc       # Reload shell
 ```
 
 ## License

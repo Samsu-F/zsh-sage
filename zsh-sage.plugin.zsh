@@ -75,8 +75,15 @@ source "$ZSH_SAGE_DIR/src/core/widget.zsh"
 source "$ZSH_SAGE_DIR/src/strategies/local.zsh"
 source "$ZSH_SAGE_DIR/src/core/cli.zsh"
 
-# hm command — always loaded, gated at runtime via ZSH_SAGE_AI_ENABLED
-source "$ZSH_SAGE_DIR/src/ai/helpme.zsh"
+# AI commands — only loaded when explicitly enabled
+# Zero footprint for non-AI users: no functions, no code, nothing sourced
+if [[ "$ZSH_SAGE_AI_ENABLED" == "true" ]]; then
+    source "$ZSH_SAGE_DIR/src/ai/helpme.zsh"
+else
+    # Lightweight stub — only exists to guide users who type `hm` without setup
+    hm() { echo "AI commands are not enabled. Run 'zsage ai' to set up."; }
+    helpme() { hm; }
+fi
 
 # ── Initialize ───────────────────────────────────────────────────────
 _sage_init() {

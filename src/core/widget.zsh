@@ -312,6 +312,16 @@ _sage_complete_widget() {
     zle -R
 }
 
+# ── This function wraps the bracketed-paste widget, which is called
+# when text is pasted into the buffer, and updates the suggestion.
+_sage_bracketed_paste() {
+    emulate -L zsh
+    _sage_highlight_reset
+    _sage_invoke_wrapped_widget bracketed-paste
+    _sage_update_suggestion
+    zle -R
+}
+
 # ── Register a function as a wrapper for an existing widget
 _sage_register_widget_wrapper() {
     emulate -L zsh
@@ -349,6 +359,7 @@ _sage_widget_init() {
 
     _sage_register_widget_wrapper _sage_backward_kill_word backward-kill-word
     _sage_register_widget_wrapper _sage_backward_delete_char backward-delete-char
+    _sage_register_widget_wrapper _sage_bracketed_paste bracketed-paste
 }
 
 # ── Backspace handler ────────────────────────────────────────────

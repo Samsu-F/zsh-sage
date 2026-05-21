@@ -338,9 +338,9 @@ _sage_cli_ai() {
         if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
             _sage_ai_set_enabled false
             export ZSH_SAGE_AI_ENABLED=false
-            # Restore the stub in the current shell so `hm` reflects disabled state immediately
+            # Restore the stub in the current shell so `hm` reflects disabled state immediately.
             hm() { echo "AI commands are not enabled. Run 'zsage ai' to set up."; }
-            helpme() { hm; }
+            alias helpme=hm
             echo "  ${d}AI disabled. Run${r} ${c}zsage ai${r} ${d}to re-enable.${r}"
         fi
         echo ""

@@ -351,6 +351,7 @@ _sage_widget_init() {
     zle -N sage-dismiss _sage_dismiss_widget
     _sage_register_widget_wrapper _sage_accept_line_widget accept-line
     _sage_register_widget_wrapper _sage_suggest_widget self-insert
+    _sage_register_widget_wrapper _sage_suggest_widget magic-space
 
     _sage_register_widget_wrapper _sage_complete_widget expand-or-complete
 

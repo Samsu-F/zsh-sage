@@ -80,9 +80,9 @@ source "$ZSH_SAGE_DIR/src/core/cli.zsh"
 if [[ "$ZSH_SAGE_AI_ENABLED" == "true" ]]; then
     source "$ZSH_SAGE_DIR/src/ai/helpme.zsh"
 else
-    # Lightweight stub — only exists to guide users who type `hm` without setup
+    # Lightweight stub — only exists to guide users who type `hm` without setup.
     hm() { echo "AI commands are not enabled. Run 'zsage ai' to set up."; }
-    helpme() { hm; }
+    alias helpme=hm
 fi
 
 # ── Initialize ───────────────────────────────────────────────────────

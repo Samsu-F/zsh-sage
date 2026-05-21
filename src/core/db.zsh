@@ -18,6 +18,11 @@ _sage_coproc_start() {
     fi
 
     coproc sqlite3 -separator '|' -cmd ".mode list" "$ZSH_SAGE_DB" 2>/dev/null
+    # Detach from job control so zsh doesn't print "[N] PID" / "[N] done"
+    # notifications when the plugin is re-sourced. The coproc is an internal
+    # implementation detail, not user-visible work; the fds stay valid and
+    # `.quit` from _sage_coproc_stop still gives it a clean shutdown.
+    disown 2>/dev/null
 
     # Verify the coproc actually started
     if ! print -p "SELECT 1;" 2>/dev/null; then

@@ -140,6 +140,12 @@ assert_contains "context includes shell version" "$ZSH_VERSION" "$context"
 assert_contains "context includes recent commands" "git status" "$context"
 assert_contains "context includes recent commands (2)" "npm test" "$context"
 
+# Format regressions: context must start with the header, not the raw
+# command list, and the recent-commands label must sit on its own line
+assert_eq "context starts with header" "Working directory:" "${context:0:18}"
+assert_contains "recent commands follow their label" $'Recent commands:\n' "$context"
+assert_eq "recent commands appear exactly once" "1" "$(printf '%s' "$context" | grep -c 'npm test')"
+
 cleanup
 
 # ═════════════════════════════════════════════════════════════════
@@ -213,6 +219,13 @@ _sage_helpme_call() { REPLY="NO_COMMAND"; }
 output=$(_sage_helpme_ask "I love you" 2>&1)
 assert_contains "ask handles non-command input" "doesn't look like a command" "$output"
 assert_exit "ask returns 0 for non-command" "0" "$?"
+
+# Mock a failing call that never touches REPLY (e.g. claude errored).
+# A stale REPLY from _sage_helpme_context must not leak into the result.
+_sage_helpme_call() { return 1; }
+output=$(_sage_helpme_ask "anything" 2>&1)
+assert_exit "ask returns 1 when call fails" "1" "$?"
+assert_contains "ask shows error when call fails" "Could not get a suggestion" "$output"
 
 cleanup
 

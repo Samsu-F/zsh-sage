@@ -15,6 +15,7 @@
 #
 
 zmodload zsh/datetime
+zmodload zsh/mathfunc
 
 # Adjust scoring weights based on prefix length.
 # The intuition: what the user needs changes as they type more.
@@ -97,7 +98,7 @@ WITH follow_ups AS (
 group_counts AS (
     SELECT cmd_group, COUNT(*) as cnt,
         CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM follow_ups) as share
-    FROM  follow_ups
+    FROM follow_ups
     GROUP BY cmd_group
     ORDER BY cnt DESC
 ),
@@ -463,8 +464,6 @@ LIMIT ${limit};"
 
 # Score a single candidate (kept for testing — uses the same SQL approach)
 _sage_score_candidate() {
-    zmodload zsh/mathfunc
-
     local candidate="$1"
     local current_dir="$2"
     local prev_cmd="$3"
@@ -473,8 +472,8 @@ _sage_score_candidate() {
     # Parse pipe-delimited fields
     local cmd=${${candidate%%|*}:-};        candidate=${candidate#*|}
     local -F freq=${${candidate%%|*}:-0};       candidate=${candidate#*|}
-    local -F last_used=${${candidate%%|*}:-0}  candidate=${candidate#*|}
-    local -F success=${${candidate%%|*}:-0}    candidate=${candidate#*|}
+    local -F last_used=${${candidate%%|*}:-0};  candidate=${candidate#*|}
+    local -F success=${${candidate%%|*}:-0};    candidate=${candidate#*|}
     local -F fail=${candidate:-0}
 
     _sage_sql_escape "$cmd"; local e_cmd="$REPLY"
@@ -518,7 +517,7 @@ _sage_score_candidate() {
 
     local dir_norm=0
     if (( max_freq > 0 && dir_freq > 0 )); then
-        dir_norm=$((1, sqrt(dir_freq / max_freq)))
+        dir_norm=$((sqrt(dir_freq / max_freq)))
         ((dir_norm > 1)) && dir_norm=1
     fi
     

@@ -14,16 +14,18 @@ typeset -g _SAGE_CURRENT_SUGGESTION=""
 typeset -g _SAGE_LAST_HIGHLIGHT=""
 
 # Cached per-signal contributions for the currently shown suggestion
-# Used by the collector to record accepts with their signal breakdown
-typeset -gF _SAGE_CURRENT_FREQ_CONTRIB=0
-typeset -gF _SAGE_CURRENT_REC_CONTRIB=0
-typeset -gF _SAGE_CURRENT_DIR_CONTRIB=0
-typeset -gF _SAGE_CURRENT_SEQ_CONTRIB=0
-typeset -gF _SAGE_CURRENT_SUCC_CONTRIB=0
+# Used by the collector to record accepts with their signal breakdown.
+# Untyped on purpose: values are pass-through strings from the ranker into
+# SQL, and float typing would reformat them (e.g. "0" -> "0.0000000000").
+typeset -g _SAGE_CURRENT_FREQ_CONTRIB=0
+typeset -g _SAGE_CURRENT_REC_CONTRIB=0
+typeset -g _SAGE_CURRENT_DIR_CONTRIB=0
+typeset -g _SAGE_CURRENT_SEQ_CONTRIB=0
+typeset -g _SAGE_CURRENT_SUCC_CONTRIB=0
 
 # Cycle state — populated on first Ctrl+Space, rotated on subsequent presses
 typeset -ga _SAGE_CYCLE_RESULTS=()     # array of "score|command" lines
-typeset -gi  _SAGE_CYCLE_INDEX=0        # current position in the cycle
+typeset -gi _SAGE_CYCLE_INDEX=0        # current position in the cycle
 typeset -g  _SAGE_CYCLE_PREFIX=""       # the prefix these results are for
 
 # Confidence color thresholds (256-color)
@@ -260,7 +262,7 @@ _sage_cycle_widget() {
         _SAGE_CYCLE_INDEX=0
 
         _sage_rank_top_n "$prefix" "$PWD" "$_SAGE_PREV_COMMAND" "${ZSH_SAGE_CYCLE_COUNT:-8}"
-        _SAGE_CYCLE_RESULTS=($reply)
+        _SAGE_CYCLE_RESULTS=("${reply[@]}")
 
         # If only one result (same as the default ghost), nothing to cycle
         if (( ${#_SAGE_CYCLE_RESULTS} <= 1 )); then

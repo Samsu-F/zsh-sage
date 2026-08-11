@@ -53,7 +53,7 @@ User's question: ${question}
 
 Command:"
 
-    _sage_helpme_call "$prompt"
+    _sage_helpme_call "$prompt" || REPLY=""
     local result="$REPLY"
 
     if [[ -z "$result" ]]; then
@@ -106,7 +106,7 @@ Exit code: ${last_exit}
 
 Corrected command:"
 
-    _sage_helpme_call "$prompt"
+    _sage_helpme_call "$prompt" || REPLY=""
     local result="$REPLY"
 
     if [[ -z "$result" ]]; then
@@ -134,17 +134,19 @@ _sage_helpme_context() {
 
     _sage_db_query "SELECT command FROM commands ORDER BY id DESC LIMIT 10;"
     local recent_cmds="$REPLY"
-    REPLY+="Working directory: ${dir}"$'\n'
+    REPLY="Working directory: ${dir}"$'\n'
     REPLY+="OS: ${os_info}"$'\n'
     REPLY+="Shell: zsh ${ZSH_VERSION}"$'\n'
     REPLY+="Git branch: ${git_branch:-none}"$'\n'
-    REPLY+="Recent commands:${recent_cmds}"$'\n'
+    REPLY+="Recent commands:"$'\n'"${recent_cmds}"
 }
 
 # ── Claude Code call (synchronous, with spinner) ─────────────────
 
 _sage_helpme_call() {
     local prompt="$1"
+    # Clear any stale value so error-path callers never see a previous REPLY
+    REPLY=""
 
     # Show spinner on stderr
     _sage_helpme_spinner &

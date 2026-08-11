@@ -126,6 +126,15 @@ score_low=${reply[1]}
 echo "  Low-signal candidate score: $score_low"
 assert_eq "Low-signal score < high-signal score" 1 $((score_low < score))
 
+# Success-rate signal: identical candidates except success/fail split must
+# score differently (regression: broken field parsing froze the rate at 0.5)
+_sage_score_candidate "some-cmd|10|${now}|10|0" "/tmp" "" "$now"
+score_reliable=${reply[1]}
+_sage_score_candidate "some-cmd|10|${now}|5|5" "/tmp" "" "$now"
+score_flaky=${reply[1]}
+echo "  Reliable (10/0) score: $score_reliable  Flaky (5/5) score: $score_flaky"
+assert_eq "Success rate differentiates otherwise-equal candidates" 1 $((score_reliable > score_flaky))
+
 echo ""
 echo "==========================================="
 echo "Results: $PASS passed, $FAIL failed"

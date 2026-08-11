@@ -172,19 +172,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # fields[2]="clean_cmd" was shown as ghost text for any prefix "c"…
 
 # ── Case 9: _sage_confidence_style never does math on garbage ──
+_sage_confidence_style 'score'
 assert_eq "confidence_style('score'): falls back to LOW, no recursion" \
-    "fg=${ZSH_SAGE_COLOR_LOW}" "$(_sage_confidence_style 'score' 2>&1)"
+    "fg=${ZSH_SAGE_COLOR_LOW}" "$REPLY"
+_sage_confidence_style ''
 assert_eq "confidence_style(''): falls back to LOW" \
-    "fg=${ZSH_SAGE_COLOR_LOW}" "$(_sage_confidence_style '' 2>&1)"
+    "fg=${ZSH_SAGE_COLOR_LOW}" "$REPLY"
+_sage_confidence_style '5.0e-05'
 assert_eq "confidence_style('5.0e-05'): sci-notation treated as LOW" \
-    "fg=${ZSH_SAGE_COLOR_LOW}" "$(_sage_confidence_style '5.0e-05' 2>&1)"
+    "fg=${ZSH_SAGE_COLOR_LOW}" "$REPLY"
 # Numeric inputs still map correctly (defaults: HIGH=0.45, LOW=0.20)
+_sage_confidence_style '0.50'
 assert_eq "confidence_style('0.50'): HIGH" \
-    "fg=${ZSH_SAGE_COLOR_HIGH}" "$(_sage_confidence_style '0.50' 2>&1)"
+    "fg=${ZSH_SAGE_COLOR_HIGH}" "$REPLY"
+_sage_confidence_style '0.30'
 assert_eq "confidence_style('0.30'): MED" \
-    "fg=${ZSH_SAGE_COLOR_MED}" "$(_sage_confidence_style '0.30' 2>&1)"
+    "fg=${ZSH_SAGE_COLOR_MED}" "$REPLY"
+_sage_confidence_style '0.05'
 assert_eq "confidence_style('0.05'): LOW" \
-    "fg=${ZSH_SAGE_COLOR_LOW}" "$(_sage_confidence_style '0.05' 2>&1)"
+    "fg=${ZSH_SAGE_COLOR_LOW}" "$REPLY"
 
 # ── Case 10: header row from the ranker is rejected, not suggested ──
 typeset -g _SAGE_SEP=$'\x1f'          # normally defined in db.zsh
@@ -193,7 +199,7 @@ typeset -g ZSH_SAGE_FS_SUGGEST=false
 _sage_highlight_apply() { :; }        # no ZLE here
 
 _sage_rank_with_score() {
-    print -r -- "score${_SAGE_SEP}clean_cmd${_SAGE_SEP}freq_contrib${_SAGE_SEP}rec_contrib${_SAGE_SEP}dir_contrib${_SAGE_SEP}seq_contrib${_SAGE_SEP}succ_contrib"
+    REPLY="score${_SAGE_SEP}clean_cmd${_SAGE_SEP}freq_contrib${_SAGE_SEP}rec_contrib${_SAGE_SEP}dir_contrib${_SAGE_SEP}seq_contrib${_SAGE_SEP}succ_contrib"
 }
 reset_state
 BUFFER="c"
@@ -204,7 +210,7 @@ assert_eq "header row: contribs stay numeric" "0" "$_SAGE_CURRENT_FREQ_CONTRIB"
 
 # ── Case 11: a real result still suggests (guard isn't over-eager) ──
 _sage_rank_with_score() {
-    print -r -- "0.5${_SAGE_SEP}cd /tmp${_SAGE_SEP}0.2${_SAGE_SEP}0.1${_SAGE_SEP}0.1${_SAGE_SEP}0.05${_SAGE_SEP}0.05"
+    REPLY="0.5${_SAGE_SEP}cd /tmp${_SAGE_SEP}0.2${_SAGE_SEP}0.1${_SAGE_SEP}0.1${_SAGE_SEP}0.05${_SAGE_SEP}0.05"
 }
 reset_state
 BUFFER="cd"

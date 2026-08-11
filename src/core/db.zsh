@@ -5,6 +5,8 @@
 # The coproc stays alive for the shell session (~1-2MB RAM, 0% idle CPU).
 #
 
+zmodload zsh/datetime
+
 typeset -g _SAGE_COPROC_ALIVE=0
 typeset -g _SAGE_EOF_SENTINEL="__SAGE_e0f_7d2b9k__"
 # ASCII Unit Separator — used as field delimiter for sqlite output so
@@ -124,22 +126,21 @@ _sage_db_query_raw() {
     # the input line, so a stored command like `echo foo\ bar` comes back as
     # `echo foo bar` and the suggestion shown / accepted is missing the escape.
     local line
-    local result=""
+    REPLY=""
     while IFS= read -r -p -t 1 line 2>/dev/null; do
         [[ "$line" == *"${_SAGE_EOF_SENTINEL}"* ]] && break
-        if [[ -n "$result" ]]; then
-            result+=$'\n'"${line}"
+        if [[ -n "$REPLY" ]]; then
+            REPLY+=$'\n'"${line}"
         else
-            result="${line}"
+            REPLY="${line}"
         fi
     done
-
-    printf '%s' "$result"
 }
 
 # Execute a query and return results (convenience wrapper)
 # Falls back to fork if coproc is unavailable (e.g. non-interactive CI)
 # Set ZSH_SAGE_NO_COPROC=1 to force fork mode (useful for testing/CI)
+# Returns via the reply variable, expect no stdout
 _sage_db_query() {
     if (( ${ZSH_SAGE_NO_COPROC:-0} )); then
         _sage_db_fork "$1"
@@ -162,7 +163,9 @@ _sage_db_exec() {
 
 # Fallback: run via sqlite3 fork (for init and import where coproc isn't ready)
 _sage_db_fork() {
-    printf '%s' "$1" | sqlite3 -batch -init /dev/null -cmd ".headers off" -separator "$_SAGE_SEP" -cmd ".timeout 5000" "$ZSH_SAGE_DB"
+    local result
+    result=$(printf '%s' "$1" | sqlite3 -batch -init /dev/null -cmd ".headers off" -separator "$_SAGE_SEP" -cmd ".timeout 5000" "$ZSH_SAGE_DB")
+    REPLY="$result"
 }
 
 # ── Database initialization ──────────────────────────────────────
@@ -224,7 +227,7 @@ _sage_sql_escape() {
     local s="$1"
     local sq="'"
     local dsq="''"
-    printf '%s' "${s//$sq/$dsq}"
+    REPLY="${s//$sq/$dsq}"
 }
 
 # ── CRUD operations ──────────────────────────────────────────────
@@ -232,7 +235,7 @@ _sage_sql_escape() {
 # Record an accepted suggestion with its signal breakdown
 # Args: freq_contrib recency_contrib dir_contrib seq_contrib success_contrib
 _sage_db_record_accept() {
-    local ts=$(date +%s)
+    local ts=$EPOCHSECONDS
     _sage_db_exec "INSERT INTO weight_accepts
 (timestamp, freq_contrib, recency_contrib, dir_contrib, seq_contrib, success_contrib)
 VALUES (${ts}, ${1:-0}, ${2:-0}, ${3:-0}, ${4:-0}, ${5:-0});"
@@ -240,12 +243,12 @@ VALUES (${ts}, ${1:-0}, ${2:-0}, ${3:-0}, ${4:-0}, ${5:-0});"
 
 # Record a command execution
 _sage_db_record() {
-    local cmd="$(_sage_sql_escape "$1")"
-    local dir="$(_sage_sql_escape "$2")"
-    local prev_cmd="$(_sage_sql_escape "$3")"
+    _sage_sql_escape "$1"; local cmd="$REPLY"
+    _sage_sql_escape "$2"; local dir="$REPLY"
+    _sage_sql_escape "$3"; local prev_cmd="$REPLY"
     local exit_code="$4"
     local timestamp="$5"
-    local git_branch="$(_sage_sql_escape "$6")"
+    _sage_sql_escape "$6"; local git_branch="$REPLY"
 
     _sage_db_exec "INSERT INTO commands (command, directory, prev_command, exit_code, timestamp, git_branch)
 VALUES ('${cmd}', '${dir}', '${prev_cmd}', ${exit_code}, ${timestamp}, '${git_branch}');
@@ -263,8 +266,8 @@ ON CONFLICT(command, directory) DO UPDATE SET
 
 # Fetch candidates matching a prefix
 _sage_db_candidates() {
-    local prefix="$(_sage_sql_escape "$1")"
-    local dir="$(_sage_sql_escape "$2")"
+    _sage_sql_escape "$1"; local prefix="$REPLY"
+    _sage_sql_escape "$2"; local dir="$REPLY"
     local limit="${3:-$ZSH_SAGE_MAX_CANDIDATES}"
 
     local like_prefix="${prefix//\$/\$\$}"
@@ -280,8 +283,8 @@ LIMIT ${limit};"
 
 # Fetch directory-specific candidates
 _sage_db_candidates_dir() {
-    local prefix="$(_sage_sql_escape "$1")"
-    local dir="$(_sage_sql_escape "$2")"
+    _sage_sql_escape "$1"; local prefix="$REPLY"
+    _sage_sql_escape "$2"; local dir="$REPLY"
     local limit="${3:-$ZSH_SAGE_MAX_CANDIDATES}"
 
     local like_prefix="${prefix//\$/\$\$}"
@@ -303,8 +306,8 @@ _sage_db_prev_command() {
 
 # Get sequence score: how often cmd follows prev_cmd
 _sage_db_sequence_score() {
-    local cmd="$(_sage_sql_escape "$1")"
-    local prev_cmd="$(_sage_sql_escape "$2")"
+    _sage_sql_escape "$1"; local cmd="$REPLY"
+    _sage_sql_escape "$2"; local prev_cmd="$REPLY"
 
     local like_cmd="${cmd//\$/\$\$}"
     like_cmd="${like_cmd//\%/\$%}"
@@ -340,7 +343,8 @@ _sage_db_import_history() {
     echo "Importing history from $histfile..."
 
     local before after
-    before=$(_sage_db_fork "SELECT COUNT(*) FROM commands;")
+    _sage_db_fork "SELECT COUNT(*) FROM commands;"
+    before="$REPLY"
 
     # Switch to an isolated history list loaded from $histfile.
     # savesize 0 guarantees nothing is ever written back to the file.
@@ -416,7 +420,8 @@ ON CONFLICT(command, directory) DO UPDATE SET
         local sqlite_status=$pipestatus[2]
 
         # Report what actually landed in the DB, not what we attempted
-        after=$(_sage_db_fork "SELECT COUNT(*) FROM commands;")
+        _sage_db_fork "SELECT COUNT(*) FROM commands;"
+        after="$REPLY"
         if (( sqlite_status != 0 )); then
             echo "Import finished with errors (sqlite3 exit ${sqlite_status})."
         fi

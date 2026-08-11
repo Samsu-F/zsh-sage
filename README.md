@@ -56,7 +56,7 @@ Everything below works out of the box — no configuration needed.
 - **Learns from you** — every accepted suggestion tunes the ranking over time
 - **Cycle through alternatives** — press Ctrl+N to browse ranked suggestions, confidence color updates with each one
 - **`hm` command** — ask AI for commands in plain English, powered by Claude Code
-- **~9ms per keystroke** — SQLite coproc, single-query scoring, zero fork overhead
+- **~2ms per keystroke** — SQLite coproc, single-query scoring, zero fork overhead
 
 ## Confidence colors
 
@@ -275,11 +275,11 @@ Benchmarked on Apple Silicon, 10,000 history entries:
 
 | Operation | Latency |
 |---|---|
-| Full rank (query + score) | ~9ms |
-| With in-memory cache hit | ~4ms |
-| SQLite query alone | ~2ms |
+| Full rank (query + score) | ~2ms |
+| With in-memory cache hit | ~0.1ms |
+| SQLite query alone | ~0.8ms |
 
-Target was <50ms per keystroke. We hit 9ms — imperceptible for typing.
+Target was <50ms per keystroke. We hit 2ms — imperceptible for typing.
 
 ### Journey
 
@@ -291,13 +291,13 @@ The first three versions were pure **optimizations** — same behavior, faster. 
 | v2 (single SQL) | ~11ms | All scoring in one SQL query | optimization (45×) |
 | v3 (coproc) | ~6ms | Persistent sqlite3 process, zero fork overhead | optimization (2×) |
 | v4 (prefix-aware) | ~9ms | Prefix-length-aware weights + exponential recency decay | improvement (traded 3ms for smarter ranking) |
+| v5 (fork-free) | ~2ms | Results returned via zsh's `REPLY` instead of subshell captures, native float math instead of `bc`, `$EPOCHSECONDS` instead of `date` | optimization (4×) |
 
 ## Dependencies
 
 - `zsh` 5.0+
 - `sqlite3` (pre-installed on macOS and most Linux)
 - `python3` (only for AI mode formatting)
-- `bc` (for scoring math in tests, not used in hot path)
 - [Claude Code](https://claude.ai/claude-code) CLI (optional, for `hm` command)
 
 ## Uninstall

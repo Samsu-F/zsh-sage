@@ -355,7 +355,13 @@ _sage_helpme_display() {
     # Action prompt
     printf "  ${c}Run it?${r} ${d}[y/N/e(dit)]${r} "
     local answer=""
-    read -s -k 1 -u 0 answer
+    if [[ -t 0 ]]; then
+        # Interactive: raw-mode read so a single keypress is delivered
+        # immediately without Enter. -u 0 skips raw mode (line-buffered).
+        read -s -k 1 answer
+    else
+        read -k 1 -u 0 answer
+    fi
     echo ""
 
     case "${answer}" in

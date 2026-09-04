@@ -275,10 +275,21 @@ _sage_pre_redraw_widget() {
 # and to refresh ghost text against the new buffer.
 _sage_post_invariant_widget() {
     emulate -L zsh
-    _sage_invoke_wrapped_widget "$WIDGET"
+    local wrapped_widget="$1"
+    _sage_invoke_wrapped_widget "$wrapped_widget"
     _sage_pre_redraw_widget
     _sage_update_suggestion
     zle -R
+}
+
+_sage_post_invariant_widget_expand_or_complete() {
+    emulate -L zsh
+    _sage_post_invariant_widget expand-or-complete
+}
+
+_sage_post_invariant_widget_complete_word() {
+    emulate -L zsh
+    _sage_post_invariant_widget complete-word
 }
 
 # ── Cycle through alternatives (Ctrl+Space) ─────────────────────
@@ -397,8 +408,8 @@ _sage_widget_init() {
 
     # Completion can change BUFFER without triggering line-pre-redraw
     # on every setup, so explicitly run the invariant check after.
-    _sage_register_widget_wrapper _sage_post_invariant_widget expand-or-complete
-    _sage_register_widget_wrapper _sage_post_invariant_widget complete-word
+    _sage_register_widget_wrapper _sage_post_invariant_widget_expand_or_complete expand-or-complete
+    _sage_register_widget_wrapper _sage_post_invariant_widget_complete_word complete-word
 
     _sage_register_widget_wrapper _sage_backward_kill_word backward-kill-word
     _sage_register_widget_wrapper _sage_backward_delete_char backward-delete-char

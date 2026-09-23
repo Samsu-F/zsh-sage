@@ -207,15 +207,33 @@ _sage_helpme_context() {
 # ── Claude Code call (synchronous, with spinner) ─────────────────
 
 _sage_helpme_call() {
+    setopt local_options local_traps
+
     local prompt="$1"
     # Clear any stale value so error-path callers never see a previous REPLY
     REPLY=""
-
-    # Show spinner on stderr
-    _sage_helpme_spinner &
-    local spinner_pid=$!
-
+    integer -g spinner_pid=0
     local raw exit_code=1
+
+    # Ctrl+C aborts before any post-call kill — without this trap the
+    # background spinner is orphaned and "thinking..." spins forever.
+    # local_traps keeps these from leaking into the interactive shell.
+    TRAPEXIT() {
+        local exit_code=$?
+        if (( spinner_pid )); then
+            kill "$spinner_pid" 2>/dev/null
+            wait "$spinner_pid" 2>/dev/null
+            spinner_pid=0
+            printf "\r                    \r" >&2
+        fi
+        unset spinner_pid &>/dev/null || true
+        return $?
+    }
+    trap 'return 130' INT
+
+    _sage_helpme_spinner &
+    spinner_pid=$!
+
     case "${_SAGE_AI_PROVIDER:-}" in
         claude)
             raw=$(claude -p "$prompt" --max-turns 1 --no-session-persistence 2>/dev/null)
@@ -226,17 +244,12 @@ _sage_helpme_call() {
             exit_code=$?
             ;;
         *)
-            echo >&2 "invalid AI provider '${_SAGE_AI_PROVIDER:-}' — run hm via its entry point."
+            print -u2 -r -- "invalid AI provider '${_SAGE_AI_PROVIDER:-}' — run hm via its entry point."
             ;;
     esac
 
-    # Stop spinner
-    kill "$spinner_pid" 2>/dev/null
-    wait "$spinner_pid" 2>/dev/null
-    printf '\r                    \r' >&2
-
     if (( exit_code != 0 || ${#raw} == 0 )); then
-        echo "  ${_SAGE_AI_PROVIDER:-AI provider} returned an error." >&2
+        print -u2 -r -- "  ${_SAGE_AI_PROVIDER:-AI provider} returned an error."
         return 1
     fi
 

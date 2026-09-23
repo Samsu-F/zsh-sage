@@ -116,7 +116,10 @@ User's question: ${question}
 
 Command:"
 
-    _sage_helpme_call "$prompt" || REPLY=""
+    _sage_helpme_call "$prompt"
+    local rc=$?
+    (( rc == 130 )) && return 130   # user pressed Ctrl+C — say nothing
+    (( rc != 0 )) && REPLY=""
     local result="$REPLY"
 
     if [[ -z "$result" ]]; then
@@ -169,7 +172,10 @@ Exit code: ${last_exit}
 
 Corrected command:"
 
-    _sage_helpme_call "$prompt" || REPLY=""
+    _sage_helpme_call "$prompt"
+    local rc=$?
+    (( rc == 130 )) && return 130   # user pressed Ctrl+C — say nothing
+    (( rc != 0 )) && REPLY=""
     local result="$REPLY"
 
     if [[ -z "$result" ]]; then
@@ -207,32 +213,30 @@ _sage_helpme_context() {
 # ── Claude Code call (synchronous, with spinner) ─────────────────
 
 _sage_helpme_call() {
-    setopt local_options local_traps
+    # no_monitor/no_notify: the spinner is an implementation detail, so the
+    # interactive shell must not announce it as a job ("terminated ...").
+    setopt local_options local_traps no_monitor no_notify
 
     local prompt="$1"
     # Clear any stale value so error-path callers never see a previous REPLY
     REPLY=""
-    integer -g spinner_pid=0
     local raw exit_code=1
+
+    # Global because TRAPEXIT needs it; namespaced so a user's own
+    # `spinner_pid` (possibly readonly) can never break the kill.
+    typeset -gi _sage_helpme_spinner_pid=0
 
     # Ctrl+C aborts before any post-call kill — without this trap the
     # background spinner is orphaned and "thinking..." spins forever.
     # local_traps keeps these from leaking into the interactive shell.
     TRAPEXIT() {
-        local exit_code=$?
-        if (( spinner_pid )); then
-            kill "$spinner_pid" 2>/dev/null
-            wait "$spinner_pid" 2>/dev/null
-            spinner_pid=0
-            printf "\r                    \r" >&2
-        fi
-        unset spinner_pid &>/dev/null || true
-        return $?
+        _sage_helpme_stop_spinner
+        unset _sage_helpme_spinner_pid
     }
     trap 'return 130' INT
 
     _sage_helpme_spinner &
-    spinner_pid=$!
+    _sage_helpme_spinner_pid=$!
 
     case "${_SAGE_AI_PROVIDER:-}" in
         claude)
@@ -244,9 +248,14 @@ _sage_helpme_call() {
             exit_code=$?
             ;;
         *)
+            _sage_helpme_stop_spinner
             print -u2 -r -- "invalid AI provider '${_SAGE_AI_PROVIDER:-}' — run hm via its entry point."
             ;;
     esac
+
+    # Stop the spinner before printing anything, so messages never land on
+    # the same line as a spinner frame. TRAPEXIT stays as the abort-path net.
+    _sage_helpme_stop_spinner
 
     if (( exit_code != 0 || ${#raw} == 0 )); then
         print -u2 -r -- "  ${_SAGE_AI_PROVIDER:-AI provider} returned an error."
@@ -255,6 +264,19 @@ _sage_helpme_call() {
 
     # Strip markdown formatting
     _sage_helpme_strip "$raw"
+}
+
+# Kill the background spinner (if running) and erase its line. Idempotent.
+_sage_helpme_stop_spinner() {
+    # Also needed here: TRAPEXIT runs after the caller's local_options are
+    # restored, so without this the kill is announced as "terminated ...".
+    setopt local_options no_monitor no_notify
+    if (( ${_sage_helpme_spinner_pid:-0} )); then
+        kill "$_sage_helpme_spinner_pid" 2>/dev/null
+        wait "$_sage_helpme_spinner_pid" 2>/dev/null
+        _sage_helpme_spinner_pid=0
+        printf '\r                    \r' >&2
+    fi
 }
 
 # ── Strip markdown formatting ────────────────────────────────────

@@ -25,11 +25,15 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
       - name: Bump version in cli.zsh
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          sed -i 's|^typeset -g _SAGE_VERSION=".*"|typeset -g _SAGE_VERSION="${{ inputs.version }}"|' src/core/cli.zsh
+          sed -i "s|^typeset -g _SAGE_VERSION=\".*\"|typeset -g _SAGE_VERSION=\"${VERSION}\"|" src/core/cli.zsh
           grep _SAGE_VERSION src/core/cli.zsh
 
       - name: Commit version bump
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -37,19 +41,22 @@ jobs:
           if git diff --cached --quiet; then
             echo "Version already up to date, skipping commit"
           else
-            git commit -m "Bump version to v${{ inputs.version }}"
+            git commit -m "Bump version to v${VERSION}"
             git push
           fi
 
       - name: Create tag and release
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # Pass inputs via env, never inline in the script: notes containing
+          # backticks, quotes or $ would otherwise be executed by bash.
+          VERSION: ${{ inputs.version }}
+          NOTES: ${{ inputs.notes }}
         run: |
-          NOTES="${{ inputs.notes }}"
           if [ -z "$NOTES" ]; then
-            NOTES="Release v${{ inputs.version }}"
+            NOTES="Release v${VERSION}"
           fi
-          gh release create "v${{ inputs.version }}" \
-            --title "v${{ inputs.version }}" \
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
             --notes "$NOTES" \
             --target main
